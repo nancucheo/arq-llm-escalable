@@ -1,0 +1,35 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfvars
+terraform/override.tf
+terraform/override.tf.json
+
+# Go
+gateway-go/vendor/
+gateway-go/*.exe
+gateway-go/*.test
+gateway-go/*.out
+
+# Python
+worker-python/__pycache__/
+worker-python/*.pyc
+worker-python/*.pyo
+worker-python/.venv/
+worker-python/venv/
+worker-python/.env
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

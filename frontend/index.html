@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Async Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 720px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    h1 { font-size: 1.5rem; color: #7dd3fc; text-align: center; }
+    #chat-box {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1rem;
+      height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .message {
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      max-width: 85%;
+      line-height: 1.5;
+    }
+    .message.user {
+      background: #1d4ed8;
+      align-self: flex-end;
+    }
+    .message.assistant {
+      background: #334155;
+      align-self: flex-start;
+    }
+    .message.loading {
+      background: #334155;
+      align-self: flex-start;
+      font-style: italic;
+      color: #94a3b8;
+    }
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    #prompt-input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 1rem;
+      outline: none;
+    }
+    #prompt-input:focus { border-color: #7dd3fc; }
+    #send-btn {
+      padding: 0.75rem 1.5rem;
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #send-btn:disabled { background: #334155; cursor: not-allowed; }
+    #send-btn:not(:disabled):hover { background: #38bdf8; }
+    #status-bar {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    #status-bar.connected { color: #4ade80; }
+    #status-bar.error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LLM Async Chat</h1>
+    <div id="chat-box"></div>
+    <div class="input-row">
+      <input id="prompt-input" type="text" placeholder="Escribe tu pregunta..." autocomplete="off" />
+      <button id="send-btn">Enviar</button>
+    </div>
+    <div id="status-bar">Conectando...</div>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById('chat-box');
+    const promptInput = document.getElementById('prompt-input');
+    const sendBtn = document.getElementById('send-btn');
+    const statusBar = document.getElementById('status-bar');
+
+    let ws = null;
+    let pendingMsgEl = null;
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+      ws.onopen = () => {
+        statusBar.textContent = 'Conectado';
+        statusBar.className = 'connected';
+        sendBtn.disabled = false;
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (pendingMsgEl) {
+          pendingMsgEl.remove();
+          pendingMsgEl = null;
+        }
+        appendMessage('assistant', data.result || data.error || JSON.stringify(data));
+        sendBtn.disabled = false;
+        promptInput.focus();
+      };
+
+      ws.onerror = () => {
+        statusBar.textContent = 'Error de conexión';
+        statusBar.className = 'error';
+      };
+
+      ws.onclose = () => {
+        statusBar.textContent = 'Desconectado. Reconectando...';
+        statusBar.className = 'error';
+        sendBtn.disabled = true;
+        setTimeout(connect, 3000);
+      };
+    }
+
+    function appendMessage(role, text) {
+      const el = document.createElement('div');
+      el.className = `message ${role}`;
+      el.textContent = text;
+      chatBox.appendChild(el);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return el;
+    }
+
+    function sendPrompt() {
+      const text = promptInput.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      appendMessage('user', text);
+      promptInput.value = '';
+      sendBtn.disabled = true;
+
+      pendingMsgEl = appendMessage('loading', 'Procesando...');
+
+      ws.send(JSON.stringify({ prompt: text }));
+    }
+
+    sendBtn.addEventListener('click', sendPrompt);
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendPrompt();
+    });
+
+    connect();
+  </script>
+</body>
+</html>
