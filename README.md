@@ -8,27 +8,27 @@ Sistema de chat asíncrono para procesamiento de LLMs con alta disponibilidad y 
 Browser (WebSocket)
         │
         ▼
-   Nginx :80 (Reverse Proxy)
-        │                    │
-        ▼                    ▼
-   Frontend             Gateway Go
-  (Vanilla JS)      (Gin + Gorilla WS)
-                          │    ▲
-                    RPUSH │    │ SUBSCRIBE result:<client_id>
-                          ▼    │
-                         Redis :6379
-                          │
-                     BLPOP│
-                          ▼
-                    Worker Python
-                  (asyncio + redis-py)
-                  simula / llama LLM API
-                          │
-                    PUBLISH result:<client_id>
-                          │
-                    ┌─────┴──────┐
-                PostgreSQL :5432  Zitadel :8085
-               (users/convs/msgs)  (OIDC / JWT)
+   Nginx :80
+   ┌─────┴──────────┐
+   ▼                ▼
+Frontend        Gateway Go :8080 ◄──────────── Zitadel :8085
+(Vanilla JS)   (Gin + Gorilla WS)   JWT RS256  (OIDC / Event Sourcing)
+                    │  ▲                               │
+              RPUSH │  │ SUB result:<client_id>        │ schema aislado
+                    ▼  │                               ▼
+                Redis :6379                      PostgreSQL :5432
+                    │           Gateway ─────►  (users/convs/msgs)
+               BLPOP│
+                    ▼
+              Worker Python
+            (asyncio + redis-py)
+            simula / llama LLM API
+                    │
+             PUBLISH result:<client_id>
+
+CronJobs (Go):
+  cache-cleaner  ──► Redis  (cada 30 min, limpia result:* obsoletos)
+  usage-reporter ──► Redis  (cada 5 min, métricas JSON)
 ```
 
 ### Flujo de datos
@@ -51,9 +51,11 @@ Browser (WebSocket)
 │       └── repository/     # Patrón Repository sobre PostgreSQL
 ├── worker-python/          # Procesador de inferencia (Python async + Redis)
 ├── cron-jobs/              # Tareas de mantenimiento en Go
-│   └── cmd/
-│       ├── cache-cleaner/  # Limpia canales Redis obsoletos (cada 30 min)
-│       └── usage-reporter/ # Reporta métricas Redis como JSON (cada 5 min)
+│   ├── cmd/
+│   │   ├── cache-cleaner/  # Limpia canales Redis obsoletos (cada 30 min)
+│   │   └── usage-reporter/ # Reporta métricas Redis como JSON (cada 5 min)
+│   └── internal/
+│       └── redisclient/    # Cliente Redis compartido entre cron-jobs
 ├── nginx/                  # Reverse proxy (HTTP + WebSocket upgrade)
 ├── db/                     # Scripts SQL de inicialización
 ├── zitadel-config/         # Configuración OIDC (Realm, admin, app)
