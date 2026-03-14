@@ -24,6 +24,11 @@ Redis: Actúa como Broker de mensajería (Colas) y como Bus de datos (Pub/Sub).
 
 Nginx: Configurado como Reverse Proxy para manejar tráfico HTTP y el upgrade de WebSockets.
 
+E. Tareas Programadas: Go CronJobs
+Rol: Procesos de mantenimiento (ej. limpieza de caché, reportes de uso).
+
+Implementación: Código Go ligero diseñado para ejecutarse y finalizar (Jobs de corta duración).
+
 3. Infraestructura como Código (Terraform - Azure)
 El agente debe generar los archivos .tf necesarios para levantar en Azure:
 
@@ -35,6 +40,7 @@ Azure Container Registry (ACR): Para almacenar las imágenes de Docker de Go, Py
 
 Network: VNet, Subnets y Network Security Groups necesarios.
 
+
 4. Flujo de Datos
 El usuario envía un prompt desde el Frontend.
 
@@ -44,7 +50,16 @@ El worker en Python extrae la tarea, procesa el texto y publica el resultado en 
 
 Go recibe la notificación de Redis y envía el mensaje final al Frontend a través del WebSocket activo.
 
-5. Entregables del Agente de Codificación
+5. Orquestación (Kubernetes Manifests)
+Deployments: Para el Gateway (Go) y los Workers (Python).
+
+Horizontal Pod Autoscaler (HPA): Escalar los Workers de Python automáticamente según la carga.
+
+CronJob Resource: Configurar la ejecución periódica del binario de mantenimiento en Go.
+
+Ingress: Configuración de Nginx para permitir el Upgrade de protocolos (HTTP -> WebSocket).
+
+6. Entregables del Agente de Codificación
 Directorio terraform/: Scripts para aprovisionar los recursos en Azure.
 
 Directorio gateway-go/: Código del middleware.
@@ -54,5 +69,7 @@ Directorio worker-python/: Código del procesador de IA.
 Directorio frontend/: Código de la interfaz de usuario.
 
 k8s-manifests/: Archivos YAML de Kubernetes (Deployments, Services, Ingress).
+
+Directorio /cron-jobs: Tareas de mantenimiento en Go.
 
 README.md: Guía paso a paso: terraform apply -> docker build -> kubectl apply.

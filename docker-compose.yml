@@ -46,3 +46,24 @@ services:
     depends_on:
       - gateway
       - frontend
+
+  cache-cleaner:
+    build: ./cron-jobs
+    command: sh -c 'while true; do ./cache-cleaner; sleep 1800; done'
+    environment:
+      - REDIS_ADDR=redis:6379
+      - STALE_TTL_HOURS=2
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  usage-reporter:
+    build: ./cron-jobs
+    command: sh -c 'while true; do ./usage-reporter; sleep 300; done'
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
