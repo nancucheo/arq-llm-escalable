@@ -8,11 +8,13 @@ Scalable asynchronous LLM processing system using a publish-subscribe pattern wi
 
 **Data flow:**
 ```
-Browser (WebSocket) → Nginx → Gateway (Go) --RPUSH--> Redis llm_queue
-                                                              ↓ BLPOP
-                                                        Worker (Python)
-                                                              ↓ PUBLISH result:<client_id>
-Browser <-- Gateway <-- Redis pub/sub <--------------------/
+Browser (WebSocket) → Nginx → Gateway (Go) ──RPUSH──► Redis llm_queue
+                                   │  ▲                     │ BLPOP
+                                   │  │ SUB           Worker (Python)
+                              JWT  │  │                     │ PUBLISH result:<client_id>
+                                   ▼  │               Redis pub/sub ──► Gateway ──► Browser
+                              Zitadel :8085
+                              PostgreSQL :5432  ◄── Gateway (persiste msgs)
 ```
 
 ## Local Development
@@ -47,9 +49,11 @@ go run main.go
 go test ./...
 
 # Environment variables
-REDIS_ADDR=localhost:6379  # default
-PORT=8080                  # default
-GIN_MODE=release           # for production
+REDIS_ADDR=localhost:6379                                    # default
+PORT=8080                                                    # default
+GIN_MODE=release                                             # for production
+DATABASE_URL=postgres://llm:llm@postgres:5432/llmdb          # omitir para deshabilitar persistencia
+ZITADEL_ISSUER=http://localhost:8085                         # omitir para deshabilitar auth JWT
 ```
 
 ### Worker (Python)
@@ -61,6 +65,25 @@ python main.py
 # Environment variables
 REDIS_HOST=localhost  # default
 REDIS_PORT=6379       # default
+```
+
+### CronJobs (Go)
+```bash
+cd cron-jobs
+go build -o cache-cleaner ./cmd/cache-cleaner
+go build -o usage-reporter ./cmd/usage-reporter
+go test ./...
+
+# Ejecutar localmente
+REDIS_ADDR=localhost:6379 STALE_TTL_HOURS=2 ./cache-cleaner
+REDIS_ADDR=localhost:6379 ./usage-reporter
+
+# Environment variables — cache-cleaner
+REDIS_ADDR=localhost:6379   # default
+STALE_TTL_HOURS=2           # horas antes de borrar result:* obsoletos (default: 2)
+
+# Environment variables — usage-reporter
+REDIS_ADDR=localhost:6379   # default
 ```
 
 ### Frontend
