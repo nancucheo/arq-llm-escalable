@@ -1,0 +1,31 @@
+FirstInstance:
+  DefaultLanguage: en
+  Org:
+    Name: LLM
+    Human:
+      UserName: admin@llm.local
+      FirstName: Admin
+      LastName: LLM
+      Email:
+        Address: admin@llm.local
+        Verified: true
+      Password: Admin1234!
+      PasswordChangeRequired: false
+  Apps:
+    - Name: llm-app
+      Type: NATIVE
+      OIDCConfig:
+        AuthMethodType: AUTH_METHOD_TYPE_NONE
+        AppType: OIDC_APP_TYPE_NATIVE
+        ResponseTypes:
+          - OIDC_RESPONSE_TYPE_CODE
+        GrantTypes:
+          - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
+          - OIDC_GRANT_TYPE_REFRESH_TOKEN
+        RedirectUris:
+          - http://localhost
+          - http://localhost:5173
+        PostLogoutRedirectUris:
+          - http://localhost
+        Version: OIDC_VERSION_1
+        DevMode: true

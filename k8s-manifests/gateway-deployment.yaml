@@ -24,6 +24,16 @@ spec:
               value: "redis:6379"
             - name: GIN_MODE
               value: "release"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: DATABASE_URL
+            - name: ZITADEL_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: zitadel-credentials
+                  key: ZITADEL_ISSUER
           resources:
             requests:
               cpu: "250m"

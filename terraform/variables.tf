@@ -56,3 +56,15 @@ variable "redis_sku" {
   default     = "Standard"
   description = "Redis Cache SKU (Basic, Standard, Premium)"
 }
+
+variable "pg_admin_password" {
+  type        = string
+  sensitive   = true
+  description = "Administrator password for PostgreSQL Flexible Server"
+}
+
+variable "pg_sku" {
+  type        = string
+  default     = "B_Standard_B1ms"
+  description = "SKU for PostgreSQL Flexible Server"
+}

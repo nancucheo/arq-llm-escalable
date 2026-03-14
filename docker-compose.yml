@@ -1,6 +1,21 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: llm
+      POSTGRES_PASSWORD: llm
+      POSTGRES_DB: llmdb
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llm -d llmdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     ports:
@@ -11,15 +26,51 @@ services:
       timeout: 3s
       retries: 5
 
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v2.70.1
+    command: start-from-init --masterkey "MasterKey12345678901234567890123" --tlsMode disabled --steps /zitadel-config/steps.yaml
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: llmdb
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: llm
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: llm
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: llm
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: llm
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_EXTERNALPORT: "8085"
+      ZITADEL_EXTERNALDOMAIN: localhost
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./zitadel-config:/zitadel-config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/zitadel", "ready", "--config", "/zitadel-config/healthcheck.yaml"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   gateway:
     build: ./gateway-go
     ports:
       - "8080:8080"
     environment:
       - REDIS_ADDR=redis:6379
+      - DATABASE_URL=postgres://llm:llm@postgres:5432/llmdb
+      - ZITADEL_ISSUER=http://localhost:8085
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      zitadel:
+        condition: service_started
 
   worker:
     build: ./worker-python
@@ -67,3 +118,6 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  pgdata:

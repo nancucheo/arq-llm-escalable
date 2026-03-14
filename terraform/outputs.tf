@@ -39,3 +39,9 @@ output "redis_primary_access_key" {
   description = "Redis primary access key"
   sensitive   = true
 }
+
+output "postgres_fqdn" {
+  value       = azurerm_postgresql_flexible_server.pg.fqdn
+  description = "PostgreSQL Flexible Server fully qualified domain name"
+  sensitive   = true
+}

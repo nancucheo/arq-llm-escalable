@@ -37,6 +37,22 @@ resource "azurerm_subnet" "redis" {
   address_prefixes     = ["10.0.2.0/24"]
 }
 
+resource "azurerm_subnet" "pg" {
+  name                 = "pg-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = ["10.0.3.0/24"]
+  service_endpoints    = ["Microsoft.Storage"]
+
+  delegation {
+    name = "pg-delegation"
+    service_delegation {
+      name    = "Microsoft.DBforPostgreSQL/flexibleServers"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
+}
+
 # ─── Network Security Groups ──────────────────────────────────────────────────
 resource "azurerm_network_security_group" "aks" {
   name                = "${local.prefix}-aks-nsg"
@@ -67,6 +83,73 @@ resource "azurerm_network_security_group" "aks" {
     source_address_prefix      = "Internet"
     destination_address_prefix = "*"
   }
+}
+
+resource "azurerm_network_security_group" "pg" {
+  name                = "${local.prefix}-pg-nsg"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  tags                = local.tags
+
+  security_rule {
+    name                       = "allow-postgres-from-aks"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5432"
+    source_address_prefix      = "10.0.1.0/24"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "deny-postgres-internet"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "pg" {
+  subnet_id                 = azurerm_subnet.pg.id
+  network_security_group_id = azurerm_network_security_group.pg.id
+}
+
+resource "azurerm_private_dns_zone" "pg" {
+  name                = "${local.prefix}-pg.private.postgres.database.azure.com"
+  resource_group_name = azurerm_resource_group.main.name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "pg" {
+  name                  = "${local.prefix}-pg-dns-link"
+  resource_group_name   = azurerm_resource_group.main.name
+  private_dns_zone_name = azurerm_private_dns_zone.pg.name
+  virtual_network_id    = azurerm_virtual_network.main.id
+  tags                  = local.tags
+}
+
+resource "azurerm_postgresql_flexible_server" "pg" {
+  name                   = "${local.prefix}-pg"
+  resource_group_name    = azurerm_resource_group.main.name
+  location               = azurerm_resource_group.main.location
+  version                = "16"
+  administrator_login    = "pgadmin"
+  administrator_password = var.pg_admin_password
+  sku_name               = var.pg_sku
+  storage_mb             = 32768
+  zone                   = "1"
+  delegated_subnet_id    = azurerm_subnet.pg.id
+  private_dns_zone_id    = azurerm_private_dns_zone.pg.id
+  tags                   = local.tags
+
+  depends_on = [azurerm_private_dns_zone_virtual_network_link.pg]
 }
 
 resource "azurerm_network_security_group" "redis" {
